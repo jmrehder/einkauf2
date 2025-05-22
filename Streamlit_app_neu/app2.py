@@ -267,7 +267,7 @@ elif page.startswith(":heavy_plus_sign:"):
                 # Type conversion for consistency and robustness
                 df_upload["Menge"] = pd.to_numeric(df_upload["Menge"], errors='coerce')
                 df_upload["Einzelpreis"] = pd.to_numeric(df_upload["Einzelpreis"], errors='coerce')
-                # FIX: Use nullable integer dtype for Jahr and Monat
+                # FIX: Use nullable integer dtype for Jahr and Monat to handle potential NaNs
                 df_upload["Jahr"] = pd.to_numeric(df_upload["Jahr"], errors='coerce').astype(pd.Int64Dtype()) 
                 df_upload["Monat"] = pd.to_numeric(df_upload["Monat"], errors='coerce').astype(pd.Int64Dtype()) 
 
@@ -277,7 +277,7 @@ elif page.startswith(":heavy_plus_sign:"):
                 # FIX: If, after dropping, the DataFrame is empty, we should exit gracefully
                 if df_upload.empty:
                     st.warning("Die hochgeladene CSV-Datei enthält nach der Bereinigung keine gültigen Datensätze zum Importieren.")
-                    st.stop() # FIX: Changed from return to st.stop()
+                    st.stop() # FIX: Changed from return to st.stop() for Streamlit script execution
                 
                 with sqlite3.connect(DB_PATH) as conn:
                     if upload_mode == "Nur hinzufügen (keine Prüfung)":
