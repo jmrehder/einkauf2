@@ -172,7 +172,7 @@ elif page.startswith(":heavy_plus_sign:"):
             warengruppe = st.text_input("Warengruppe", placeholder="z. B. Hygienebedarf")
         with col3:
             menge = st.number_input("Menge", min_value=0.0, step=1.0, value=1.0)
-             einzelpreis = st.number_input("Einzelpreis (€)", min_value=0.0, step=0.01)
+            einzelpreis = st.number_input("Einzelpreis (€)", min_value=0.0, step=0.01)
             lieferant = st.text_input("Lieferant", placeholder="z. B. Hartmann")
         datum = st.date_input("Buchungsmonat", value=datetime.today().replace(day=1))
         jahr, monat = datum.year, datum.month
