@@ -79,7 +79,7 @@ page = st.sidebar.radio(
     label="",
     options=(
         ":house: Start",
-        ":inbox_tray: Daten importieren", # New page for import
+        ":inbox_tray: Daten importieren",
         ":bar_chart: Analyse",
         ":heavy_plus_sign: Einkauf erfassen",
         ":open_file_folder: Alle Einkäufe",
@@ -105,10 +105,7 @@ Um Daten in die Anwendung zu laden, navigiere zu ":inbox_tray: Daten importieren
     """)
 
 # ---------------------------------------------------------------------------
-# NEUE SEITE: Daten importieren
-# ---------------------------------------------------------------------------
-# ---------------------------------------------------------------------------
-# NEUE SEITE: Daten importieren (vereinfacht)
+# Seite: Daten importieren (vereinfacht)
 # ---------------------------------------------------------------------------
 elif page.startswith(":inbox_tray:"):
     st.header(":inbox_tray: Daten per CSV-Datei importieren")
@@ -125,8 +122,10 @@ elif page.startswith(":inbox_tray:"):
                 "Kostenstellenbez.": "Kostenstellenbez"
             }, inplace=True)
 
-            required = {"Material", "Materialkurztext", "Werk", "Kostenstelle", "Kostenstellenbez",
-                        "Menge", "Einzelpreis", "Warengruppe", "Jahr", "Monat", "Lieferant"}
+            required = {
+                "Material", "Materialkurztext", "Werk", "Kostenstelle", "Kostenstellenbez",
+                "Menge", "Einzelpreis", "Warengruppe", "Jahr", "Monat", "Lieferant"
+            }
 
             if not required.issubset(df.columns):
                 missing = required - set(df.columns)
@@ -138,34 +137,9 @@ elif page.startswith(":inbox_tray:"):
                         df.to_sql("einkaeufe", conn, if_exists="append", index=False, method="multi")
                     st.success(f"✅ {len(df)} Zeilen erfolgreich importiert.")
                     st.cache_data.clear()
-
         except Exception as e:
             st.error(f"❌ Fehler beim Import: {e}")
 
-    st.markdown("---")
-    st.subheader("📄 Beispiel-CSV herunterladen")
-    example_data = pd.DataFrame([{
-        "Material": "12345678",
-        "Materialkurztext": "Tupfer steril",
-        "Werk": "ROMS",
-        "Kostenstelle": "100010",
-        "Kostenstellenbez": "Station 3A",
-        "Menge": 10,
-        "Einzelpreis": 2.50,
-        "Warengruppe": "Hygienebedarf",
-        "Jahr": 2025,
-        "Monat": 5,
-        "Lieferant": "Hartmann"
-    }])
-    st.download_button(
-        label="📥 Beispiel-CSV herunterladen",
-        data=example_data.to_csv(index=False).encode("utf-8"),
-        file_name="beispiel_einkauf.csv",
-        mime="text/csv"
-    )
-
-
-    # Example CSV download (remains on this page)
     st.markdown("---")
     st.subheader("📄 Beispiel-CSV herunterladen")
     example_data = pd.DataFrame([{
@@ -268,8 +242,7 @@ elif page.startswith(":heavy_plus_sign:"):
             conn.commit()
             conn.close()
             st.success(":white_check_mark: Einkauf erfolgreich gespeichert.")
-            st.cache_data.clear() # Clear cache to refresh data in other pages
-
+            st.cache_data.clear()
 
 # ---------------------------------------------------------------------------
 # Seite: Alle Einkäufe
@@ -309,4 +282,4 @@ elif page.startswith(":wastebasket:"):
                 conn.commit()
                 conn.close()
                 st.success(":white_check_mark: Einkauf gelöscht. Bitte Seite neu laden, um die Tabelle zu aktualisieren.")
-                st.cache_data.clear() # Clear cache to refresh data in other pages
+                st.cache_data.clear()
