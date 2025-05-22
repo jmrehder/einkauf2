@@ -107,6 +107,9 @@ Um Daten in die Anwendung zu laden, navigiere zu ":inbox_tray: Daten importieren
 # ---------------------------------------------------------------------------
 # Seite: Daten importieren (vereinfacht)
 # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# Seite: Daten importieren (mit Batch-Import)
+# ---------------------------------------------------------------------------
 elif page.startswith(":inbox_tray:"):
     st.header(":inbox_tray: Daten per CSV-Datei importieren")
 
@@ -132,13 +135,20 @@ elif page.startswith(":inbox_tray:"):
                 st.error(f"❌ Fehlende Spalten: {missing}")
             else:
                 st.dataframe(df.head(), use_container_width=True)
+
                 if st.button("✅ Daten importieren"):
-                    with sqlite3.connect(DB_PATH) as conn:
-                        df.to_sql("einkaeufe", conn, if_exists="append", index=False, method="multi")
-                    st.success(f"✅ {len(df)} Zeilen erfolgreich importiert.")
-                    st.cache_data.clear()
+                    try:
+                        batch_size = 500  # sicheres Limit für SQLite
+                        with sqlite3.connect(DB_PATH) as conn:
+                            for start in range(0, len(df), batch_size):
+                                chunk = df.iloc[start:start+batch_size]
+                                chunk.to_sql("einkaeufe", conn, if_exists="append", index=False)
+                        st.success(f"✅ {len(df)} Zeilen erfolgreich importiert.")
+                        st.cache_data.clear()
+                    except Exception as e:
+                        st.error(f"❌ Fehler beim Import: {e}")
         except Exception as e:
-            st.error(f"❌ Fehler beim Import: {e}")
+            st.error(f"❌ Fehler beim Einlesen der Datei: {e}")
 
     st.markdown("---")
     st.subheader("📄 Beispiel-CSV herunterladen")
@@ -161,6 +171,7 @@ elif page.startswith(":inbox_tray:"):
         file_name="beispiel_einkauf.csv",
         mime="text/csv"
     )
+
 
 # ---------------------------------------------------------------------------
 # Seite: Analyse
