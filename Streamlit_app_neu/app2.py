@@ -11,7 +11,7 @@ import streamlit as st
 # Basis‑Konfiguration & Pfade
 # ---------------------------------------------------------------------------
 BASE_DIR = Path(__file__).parent
-DB_PATH = BASE_DIR / "einkauf.db"
+DB_PATH = BASE_DIR / "einkauf.db3"
 CSV_PATH = BASE_DIR / "alle_Haeuser_2022-2025_synthetic_70000_clean.csv"
 
 st.set_page_config(
