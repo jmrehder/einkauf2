@@ -105,10 +105,7 @@ Um Daten in die Anwendung zu laden, navigiere zu ":inbox_tray: Daten importieren
     """)
 
 # ---------------------------------------------------------------------------
-# Seite: Daten importieren (vereinfacht)
-# ---------------------------------------------------------------------------
-# ---------------------------------------------------------------------------
-# Seite: Daten importieren (mit Batch-Import)
+# Seite: Daten importieren (robust mit Batch und Spaltenprüfung)
 # ---------------------------------------------------------------------------
 elif page.startswith(":inbox_tray:"):
     st.header(":inbox_tray: Daten per CSV-Datei importieren")
@@ -118,6 +115,8 @@ elif page.startswith(":inbox_tray:"):
     if uploaded_file:
         try:
             df = pd.read_csv(uploaded_file)
+
+            # Optional: Spalten umbenennen (falls nötig)
             df.rename(columns={
                 "Menge Ausw.-Zr": "Menge",
                 "Wert Ausw.-Zr": "Wert",
@@ -125,24 +124,30 @@ elif page.startswith(":inbox_tray:"):
                 "Kostenstellenbez.": "Kostenstellenbez"
             }, inplace=True)
 
-            required = {
+            # Erwartete Spalten in der DB
+            db_columns = [
                 "Material", "Materialkurztext", "Werk", "Kostenstelle", "Kostenstellenbez",
                 "Menge", "Einzelpreis", "Warengruppe", "Jahr", "Monat", "Lieferant"
-            }
+            ]
+            missing = set(db_columns) - set(df.columns)
 
-            if not required.issubset(df.columns):
-                missing = required - set(df.columns)
+            if missing:
                 st.error(f"❌ Fehlende Spalten: {missing}")
             else:
                 st.dataframe(df.head(), use_container_width=True)
 
                 if st.button("✅ Daten importieren"):
                     try:
-                        batch_size = 500  # sicheres Limit für SQLite
+                        # Nur gültige Spalten übernehmen
+                        df = df[db_columns]
+
+                        # Batch-Import in SQLite (unter SQLite-Grenze bleiben)
+                        batch_size = 500
                         with sqlite3.connect(DB_PATH) as conn:
                             for start in range(0, len(df), batch_size):
                                 chunk = df.iloc[start:start+batch_size]
                                 chunk.to_sql("einkaeufe", conn, if_exists="append", index=False)
+
                         st.success(f"✅ {len(df)} Zeilen erfolgreich importiert.")
                         st.cache_data.clear()
                     except Exception as e:
@@ -166,12 +171,11 @@ elif page.startswith(":inbox_tray:"):
         "Lieferant": "Hartmann"
     }])
     st.download_button(
-        label="📥 Beispiel-CSV herunterladen",
+        label="📅 Beispiel-CSV herunterladen",
         data=example_data.to_csv(index=False).encode("utf-8"),
         file_name="beispiel_einkauf.csv",
         mime="text/csv"
     )
-
 
 # ---------------------------------------------------------------------------
 # Seite: Analyse
