@@ -70,9 +70,6 @@ def init_db() -> None:
             try:
                 df_csv = pd.read_csv(CSV_PATH)
                 
-                # DEBUG START: Print columns before rename
-                st.info(f"DEBUG: Original CSV Columns (from '{CSV_PATH.name}'): {df_csv.columns.tolist()}")
-                
                 df_csv = df_csv.rename(columns={
                     "Menge Ausw.-Zr": "Menge",
                     "Wert Ausw.-Zr": "Wert",
@@ -80,9 +77,6 @@ def init_db() -> None:
                     "Kostenstellenbez.": "Kostenstellenbez", # FIX: Added mapping for column with period from CSV
                 })
                 
-                # DEBUG START: Print columns after rename
-                st.info(f"DEBUG: Columns After Rename: {df_csv.columns.tolist()}")
-
                 # Ensure all necessary columns exist after renaming
                 required_cols = {"Material", "Materialkurztext", "Werk", "Kostenstelle", 
                                  "Kostenstellenbez", "Menge", "Einzelpreis", 
