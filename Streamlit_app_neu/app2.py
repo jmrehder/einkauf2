@@ -73,6 +73,7 @@ def init_db() -> None:
                     "Menge Ausw.-Zr": "Menge",
                     "Wert Ausw.-Zr": "Wert",
                     "Name Regellieferant": "Lieferant",
+                    "Kostenstellenbez.": "Kostenstellenbez", # FIX: Added mapping for column with period
                 })
                 # Ensure all necessary columns exist after renaming
                 required_cols = {"Material", "Materialkurztext", "Werk", "Kostenstelle", 
@@ -251,6 +252,7 @@ elif page.startswith(":heavy_plus_sign:"):
                 "Menge Ausw.-Zr": "Menge",
                 "Wert Ausw.-Zr": "Wert", # 'Wert' column isn't used in the DB, but renaming it is fine.
                 "Name Regellieferant": "Lieferant",
+                "Kostenstellenbez.": "Kostenstellenbez", # FIX: Added mapping for column with period
             })
             
             # Define required columns for CSV upload
@@ -352,7 +354,7 @@ elif page.startswith(":heavy_plus_sign:"):
         "Materialkurztext": "Tupfer steril",
         "Werk": "ROMS",
         "Kostenstelle": "100010",
-        "Kostenstellenbez": "Station 3A",
+        "Kostenstellenbez.": "Station 3A", # Renamed to match the expected input CSV column (with period)
         "Menge Ausw.-Zr": 10, # Renamed to match the expected input CSV column
         "Wert Ausw.-Zr": 25.00, # Added for completeness of example input, though not stored in DB
         "Einzelpreis": 2.50,
