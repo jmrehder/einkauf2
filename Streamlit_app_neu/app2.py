@@ -73,7 +73,7 @@ def init_db() -> None:
                     "Menge Ausw.-Zr": "Menge",
                     "Wert Ausw.-Zr": "Wert",
                     "Name Regellieferant": "Lieferant",
-                    "Kostenstellenbez.": "Kostenstellenbez", # FIX: Added mapping for column with period
+                    "Kostenstellenbez.": "Kostenstellenbez", # FIX: Added mapping for column with period from CSV
                 })
                 # Ensure all necessary columns exist after renaming
                 required_cols = {"Material", "Materialkurztext", "Werk", "Kostenstelle", 
@@ -252,7 +252,7 @@ elif page.startswith(":heavy_plus_sign:"):
                 "Menge Ausw.-Zr": "Menge",
                 "Wert Ausw.-Zr": "Wert", # 'Wert' column isn't used in the DB, but renaming it is fine.
                 "Name Regellieferant": "Lieferant",
-                "Kostenstellenbez.": "Kostenstellenbez", # FIX: Added mapping for column with period
+                "Kostenstellenbez.": "Kostenstellenbez", # FIX: Added mapping for column with period from CSV
             })
             
             # Define required columns for CSV upload
@@ -264,27 +264,34 @@ elif page.startswith(":heavy_plus_sign:"):
             if missing_cols_upload:
                 st.error(f":x: Die hochgeladene CSV-Datei fehlt eine oder mehrere notwendige Spalten: {', '.join(missing_cols_upload)}")
             else:
-                # Type conversion for consistency
+                # Type conversion for consistency and robustness
                 df_upload["Menge"] = pd.to_numeric(df_upload["Menge"], errors='coerce')
                 df_upload["Einzelpreis"] = pd.to_numeric(df_upload["Einzelpreis"], errors='coerce')
-                df_upload["Jahr"] = pd.to_numeric(df_upload["Jahr"], errors='coerce').astype(int)
-                df_upload["Monat"] = pd.to_numeric(df_upload["Monat"], errors='coerce').astype(int)
+                # FIX: Use nullable integer dtype for Jahr and Monat
+                df_upload["Jahr"] = pd.to_numeric(df_upload["Jahr"], errors='coerce').astype(pd.Int64Dtype()) 
+                df_upload["Monat"] = pd.to_numeric(df_upload["Monat"], errors='coerce').astype(pd.Int64Dtype()) 
 
-                # Drop rows where critical numeric conversions failed
+                # Drop rows where critical numeric conversions failed (e.g., NaN for Menge/Einzelpreis/Jahr/Monat)
                 df_upload.dropna(subset=["Menge", "Einzelpreis", "Jahr", "Monat"], inplace=True)
+                
+                # FIX: If, after dropping, the DataFrame is empty, we should exit gracefully
+                if df_upload.empty:
+                    st.warning("Die hochgeladene CSV-Datei enthält nach der Bereinigung keine gültigen Datensätze zum Importieren.")
+                    return # Exit the upload processing
                 
                 with sqlite3.connect(DB_PATH) as conn:
                     if upload_mode == "Nur hinzufügen (keine Prüfung)":
-                        # FIX: Removed method="multi" for CSV upload too
+                        # FIX: Removed method="multi" for CSV upload too, for consistency and robustness
                         df_upload.to_sql("einkaeufe", conn, if_exists="append", index=False)
                         st.success(f":white_check_mark: {len(df_upload)} Datensätze erfolgreich hinzugefügt.")
                     else:
                         db_data = pd.read_sql("SELECT * FROM einkaeufe", conn)
                         key_cols = ["Material", "Kostenstelle", "Jahr", "Monat"]
 
-                        # Convert key columns to string for merge key generation to avoid type mismatches
-                        df_upload["merge_key"] = df_upload[key_cols].astype(str).agg("_".join, axis=1)
-                        db_data["merge_key"] = db_data[key_cols].astype(str).agg("_".join, axis=1)
+                        # FIX: More robust merge_key creation using fillna('') and apply
+                        # Convert to string and fill any potential NaNs with empty strings before joining
+                        df_upload["merge_key"] = df_upload[key_cols].astype(str).fillna('').apply(lambda x: "_".join(x), axis=1)
+                        db_data["merge_key"] = db_data[key_cols].astype(str).fillna('').apply(lambda x: "_".join(x), axis=1)
 
                         if upload_mode == "Nur neue Datensätze einfügen (Dubletten vermeiden)":
                             df_filtered = df_upload[~df_upload["merge_key"].isin(db_data["merge_key"])]
@@ -294,7 +301,7 @@ elif page.startswith(":heavy_plus_sign:"):
                                 df_filtered.to_sql("einkaeufe", conn, if_exists="append", index=False)
                                 st.success(f":white_check_mark: {len(df_filtered)} neue Datensätze eingefügt.")
                             else:
-                                st.info("Keine neuen Datensätze zum Einfügen gefunden (alle sind bereits vorhanden).")
+                                st.info("Keine neuen Datensätze zum Einfügen gefunden (alle sind bereits vorhanden oder ungültig).")
                                 
                         elif upload_mode == "Vorhandene Datensätze aktualisieren (nach Schlüssel)":
                             updated_count = 0
@@ -340,9 +347,9 @@ elif page.startswith(":heavy_plus_sign:"):
         except Exception as e:
             st.error(f":x: Fehler beim Verarbeiten der hochgeladenen Datei: {e}")
         finally:
-            # Optionally clear the file uploader after processing
-            # This requires a bit more advanced Streamlit state management or a rerun.
-            # For simplicity, we'll let it stay for now, but a clear button could be added.
+            # Optionally clear the file uploader after processing. 
+            # This generally requires Streamlit's session state, which is a bit more complex for a simple code update.
+            # For direct code replacement, we'll keep it as is, but it's a UX improvement to consider.
             pass
 
 
@@ -354,7 +361,7 @@ elif page.startswith(":heavy_plus_sign:"):
         "Materialkurztext": "Tupfer steril",
         "Werk": "ROMS",
         "Kostenstelle": "100010",
-        "Kostenstellenbez.": "Station 3A", # Renamed to match the expected input CSV column (with period)
+        "Kostenstellenbez.": "Station 3A", # IMPORTANT: Column name with period to match the provided CSV format
         "Menge Ausw.-Zr": 10, # Renamed to match the expected input CSV column
         "Wert Ausw.-Zr": 25.00, # Added for completeness of example input, though not stored in DB
         "Einzelpreis": 2.50,
@@ -416,6 +423,6 @@ elif page.startswith(":wastebasket:"):
                 conn.close()
                 st.success(":white_check_mark: Einkauf erfolgreich gelöscht.")
                 
-                # Invalidate cache and rerun the app to immediately reflect changes
+                # FIX: Invalidate cache and rerun the app to immediately reflect changes
                 st.cache_data.clear() 
                 st.rerun()
