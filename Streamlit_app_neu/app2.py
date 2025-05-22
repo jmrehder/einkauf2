@@ -107,103 +107,63 @@ Um Daten in die Anwendung zu laden, navigiere zu ":inbox_tray: Daten importieren
 # ---------------------------------------------------------------------------
 # NEUE SEITE: Daten importieren
 # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# NEUE SEITE: Daten importieren (vereinfacht)
+# ---------------------------------------------------------------------------
 elif page.startswith(":inbox_tray:"):
     st.header(":inbox_tray: Daten per CSV-Datei importieren")
 
-    # Initialize session state for uploaded dataframe if not exists
-    if 'uploaded_df' not in st.session_state:
-        st.session_state['uploaded_df'] = None
+    uploaded_file = st.file_uploader("CSV-Datei auswählen", type="csv")
 
-    uploaded_file = st.file_uploader("CSV-Datei auswählen", type=["csv"])
-
-    if uploaded_file is not None:
+    if uploaded_file:
         try:
-            df_upload = pd.read_csv(uploaded_file)
-            df_upload = df_upload.rename(columns={
+            df = pd.read_csv(uploaded_file)
+            df.rename(columns={
                 "Menge Ausw.-Zr": "Menge",
                 "Wert Ausw.-Zr": "Wert",
                 "Name Regellieferant": "Lieferant",
-            })
-            required_cols = {"Material", "Materialkurztext", "Werk", "Kostenstelle", "Kostenstellenbez", "Menge", "Einzelpreis", "Warengruppe", "Jahr", "Monat", "Lieferant"}
+                "Kostenstellenbez.": "Kostenstellenbez"
+            }, inplace=True)
 
-            if not required_cols.issubset(df_upload.columns):
-                st.error(f":x: Die hochgeladene CSV-Datei fehlt eine oder mehrere notwendige Spalten: {required_cols - set(df_upload.columns)}")
-                st.session_state['uploaded_df'] = None # Clear df if columns are missing
+            required = {"Material", "Materialkurztext", "Werk", "Kostenstelle", "Kostenstellenbez",
+                        "Menge", "Einzelpreis", "Warengruppe", "Jahr", "Monat", "Lieferant"}
+
+            if not required.issubset(df.columns):
+                missing = required - set(df.columns)
+                st.error(f"❌ Fehlende Spalten: {missing}")
             else:
-                st.session_state['uploaded_df'] = df_upload
-                st.success("CSV-Datei erfolgreich geladen. Hier ist eine Vorschau:")
-                st.dataframe(df_upload.head()) # Show preview
-                st.info(f"Es wurden {len(df_upload)} Zeilen zum Import erkannt.")
+                st.dataframe(df.head(), use_container_width=True)
+                if st.button("✅ Daten importieren"):
+                    with sqlite3.connect(DB_PATH) as conn:
+                        df.to_sql("einkaeufe", conn, if_exists="append", index=False, method="multi")
+                    st.success(f"✅ {len(df)} Zeilen erfolgreich importiert.")
+                    st.cache_data.clear()
 
         except Exception as e:
-            st.error(f":x: Fehler beim Lesen der CSV-Datei: {e}")
-            st.session_state['uploaded_df'] = None
+            st.error(f"❌ Fehler beim Import: {e}")
 
-    if st.session_state['uploaded_df'] is not None:
-        st.markdown("---")
-        st.subheader("Import-Optionen")
+    st.markdown("---")
+    st.subheader("📄 Beispiel-CSV herunterladen")
+    example_data = pd.DataFrame([{
+        "Material": "12345678",
+        "Materialkurztext": "Tupfer steril",
+        "Werk": "ROMS",
+        "Kostenstelle": "100010",
+        "Kostenstellenbez": "Station 3A",
+        "Menge": 10,
+        "Einzelpreis": 2.50,
+        "Warengruppe": "Hygienebedarf",
+        "Jahr": 2025,
+        "Monat": 5,
+        "Lieferant": "Hartmann"
+    }])
+    st.download_button(
+        label="📥 Beispiel-CSV herunterladen",
+        data=example_data.to_csv(index=False).encode("utf-8"),
+        file_name="beispiel_einkauf.csv",
+        mime="text/csv"
+    )
 
-        upload_mode = st.radio(
-            "Was soll beim Importieren passieren?",
-            options=[
-                "Nur hinzufügen (keine Prüfung)",
-                "Nur neue Datensätze einfügen (Dubletten vermeiden)",
-                "Vorhandene Datensätze aktualisieren (nach Schlüssel)"
-            ],
-            key="import_mode_radio" # Unique key for this radio button
-        )
-
-        if st.button("Daten jetzt importieren :inbox_tray:"):
-            with sqlite3.connect(DB_PATH) as conn:
-                df_to_import = st.session_state['uploaded_df']
-
-                if upload_mode == "Nur hinzufügen (keine Prüfung)":
-                    df_to_import.to_sql("einkaeufe", conn, if_exists="append", index=False, method="multi")
-                    st.success(":white_check_mark: Daten erfolgreich hinzugefügt.")
-                else:
-                    db_data = pd.read_sql("SELECT * FROM einkaeufe", conn)
-                    key_cols = ["Material", "Kostenstelle", "Jahr", "Monat"]
-
-                    df_to_import["merge_key"] = df_to_import[key_cols].astype(str).agg("_".join, axis=1)
-                    db_data["merge_key"] = db_data[key_cols].astype(str).agg("_".join, axis=1)
-
-                    if upload_mode == "Nur neue Datensätze einfügen (Dubletten vermeiden)":
-                        df_filtered = df_to_import[~df_to_import["merge_key"].isin(db_data["merge_key"])]
-                        df_filtered.drop(columns=["merge_key"], inplace=True)
-                        df_filtered.to_sql("einkaeufe", conn, if_exists="append", index=False, method="multi")
-                        st.success(f":white_check_mark: {len(df_filtered)} neue Datensätze eingefügt.")
-                    elif upload_mode == "Vorhandene Datensätze aktualisieren (nach Schlüssel)":
-                        updated = 0
-                        inserted = 0
-                        for _, row in df_to_import.iterrows():
-                            key_values = tuple(row[k] for k in key_cols)
-                            exists = conn.execute(
-                                f"SELECT COUNT(*) FROM einkaeufe WHERE Material=? AND Kostenstelle=? AND Jahr=? AND Monat=?", key_values
-                            ).fetchone()[0]
-                            if exists:
-                                conn.execute(
-                                    """
-                                    UPDATE einkaeufe SET
-                                        Materialkurztext = ?, Werk = ?, Kostenstellenbez = ?,
-                                        Menge = ?, Einzelpreis = ?, Warengruppe = ?, Lieferant = ?
-                                    WHERE Material = ? AND Kostenstelle = ? AND Jahr = ? AND Monat = ?
-                                    """,
-                                    (
-                                        row["Materialkurztext"], row["Werk"], row["Kostenstellenbez"],
-                                        row["Menge"], row["Einzelpreis"], row["Warengruppe"], row["Lieferant"],
-                                        *key_values
-                                    )
-                                )
-                                updated += 1
-                            else:
-                                row_no_merge_key = row.drop(labels=["merge_key"], errors="ignore")
-                                # Convert series to dataframe row for to_sql
-                                row_no_merge_key.to_frame().T.to_sql("einkaeufe", conn, if_exists="append", index=False)
-                                inserted += 1
-                        conn.commit()
-                        st.success(f":white_check_mark: {updated} Datensätze aktualisiert und {inserted} neue Datensätze eingefügt.")
-            st.session_state['uploaded_df'] = None # Clear the dataframe after import
-            st.cache_data.clear() # Clear cache to refresh data in other pages
 
     # Example CSV download (remains on this page)
     st.markdown("---")
